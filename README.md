@@ -1,4 +1,4 @@
-imageindexer
+photoindexer
 ============
 
-indexes the exif data of images in an album.
+indexes the exif data of photos in an album.
