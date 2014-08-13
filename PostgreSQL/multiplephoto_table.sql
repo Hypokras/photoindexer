@@ -5,10 +5,10 @@
 CREATE TABLE multiplephoto
 (
   id serial NOT NULL, -- PK
-  Image_DateTime timestamp without time zone,
-  EXIF_DateTimeOriginal timestamp without time zone,
-  EXIF_DateTimeDigitized timestamp without time zone,
-  Image_Model character varying,
+  image_datetime timestamp without time zone,
+  exif_datetimeoriginal timestamp without time zone,
+  exif_datetimedigitized timestamp without time zone,
+  image_model character varying,
   CONSTRAINT "Primary_Key_multiplephoto" PRIMARY KEY (id )
 )
 WITH (

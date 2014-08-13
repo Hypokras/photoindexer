@@ -16,8 +16,7 @@ def write(dbquery):
     try:
     	conn = psycopg2.connect(database=n1, user=n2, host=n3, password=n4)
     except:
-	#TODO Meldung "Datenbankverbindung konnte nicht hergestellt werden"
-	pass
+	return [101, "Datenbankverbindung konnte nicht hergestellt werden\n"]
     try:
     	cur = conn.cursor()
     	cur.execute(dbquery)
@@ -25,8 +24,8 @@ def write(dbquery):
     	cur.close()
     	conn.close()
     except:
-	pass
-	#TODO Meldung "Es konnte nicht in Datenbank geschrieben werden"
+	return [102, "Es konnte nicht in Datenbank geschrieben werden\n"]
+    return [200, "Folgender Query wurde ausgefuehrt:\n" + dbquery + "\n"]
 
 ############################################################
 
@@ -35,8 +34,7 @@ def writescript(scriptpath):
     try:
     	conn = psycopg2.connect(database=n1, user=n2, host=n3, password=n4)
     except:
-	#TODO Meldung "Datenbankverbindung konnte nicht hergestellt werden"
-	pass
+	return [101, "Datenbankverbindung konnte nicht hergestellt werden\n"]
     try:
     	cur = conn.cursor()
 	cur.execute(open(scriptpath, "r").read())
@@ -44,8 +42,8 @@ def writescript(scriptpath):
     	cur.close()
     	conn.close()
     except:
-	pass
-	#TODO Meldung "Es konnte nicht in Datenbank geschrieben werden"
+	return [102, "Es konnte nicht in Datenbank geschrieben werden\n"]
+    return [200, "Folgendes Script wurde ausgefuehrt:\n" + scriptpath + "\n"]
 
 ############################################################
 
@@ -53,8 +51,7 @@ def read(table, bedingung=""):
 	try:
     		conn = psycopg2.connect(database=n1, user=n2, host=n3, password=n4)
 	except:
-		#TODO Meldung "Datenbankverbindung konnte nicht hergestellt werden"
-		pass
+		return [101, "Datenbankverbindung konnte nicht hergestellt werden\n"]
 	try:	
 		cur = conn.cursor()
 		cur.execute("SELECT * FROM " + table + " " + bedingung +";")
@@ -67,11 +64,9 @@ def read(table, bedingung=""):
 		cur.close()
 		conn.close()
 	except:
-		#TODO Meldung " Es konnte nicht aus der Datenbank gelesen werden"
-		pass
-		results = False
+		return [103, "Es konnte nicht aus Datenbank gelesen werden\n"]
 	# DB Output to Dictionary
-	return results
+	return [200, results]
 
 ############################################################
 
@@ -79,20 +74,17 @@ def readquery(query):
 	try:
     		conn = psycopg2.connect(database=n1, user=n2, host=n3, password=n4)
 	except:
-		#TODO Meldung "Datenbankverbindung konnte nicht hergestellt werden"
-		pass
+		return [101, "Datenbankverbindung konnte nicht hergestellt werden\n"]
 	try:	
 		cur = conn.cursor()
 		cur.execute(query)
-		result = cur.fetchall()
+		results = cur.fetchall()
 		cur.close()
 		conn.close()
 	except:
-		#TODO Meldung " Es konnte nicht aus der Datenbank gelesen werden"
-		pass
-		result = False
+		return [103, "Es konnte nicht aus Datenbank gelesen werden\n"]
 	# DB Output to Dictionary
-	return result
+	return [200, results]
 
 ############################################################
 
@@ -101,17 +93,23 @@ def readquery(query):
 def initdb():
 	# Existieren die gewuenschten Table?
 	query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
-	tables = readquery(query)
+	a = readquery(query)
+	if a[0] != 200:
+		return a.append("Tables konnten nicht aus DB gelesen werden\n")
+	tables = a[1]
 	value = []
 	for x in tables:
 		value.append(x[0])
 	if not "photoindex" in value:
 		# Die gewuenschten Tables erstellen.
-		writescript("../PostgreSQL/photoindex_table.sql")
+		a = writescript("../PostgreSQL/photoindex_table.sql")
+		if a[0] != 200:
+			return a.append("Table photoindex konnte nicht erstellt werden\n")
 	if not "multiplephoto" in value:
-		writescript("../PostgreSQL/multiplephoto_table.sql")
-		#TODO Was wenn Script nicht ausgefuehrt werden kann?
-	return tables
+		a = writescript("../PostgreSQL/multiplephoto_table.sql")
+		if a[0] != 200:
+			return a.append("Table multiplephoto konnte nicht erstellt werden\n")
+	return [200, tables]
 
 # Alter Table
 
@@ -119,19 +117,31 @@ def altertable(columns):
 	# Table um Columns welche noch nicht existieren erweitern.
 	#
 	# Columns auslesen.
-	query = "SELECT column_name FROM information_schema.columns WHERE table_name ='test';"
-	result = readquery(query)
+	query = "SELECT column_name FROM information_schema.columns WHERE table_name ='photoindex';"
+	a = readquery(query)
+	if a[0] != 200:
+		return a.append("Column namen konnten nicht gelesen werden\n")
+	result = a[1]
+	x = []
+	for a in columns:
+		x.append(a.replace(' ', '_').lower())
+	columns = x
 	oldcolumns = []
 	for x in result:
 		oldcolumns.append(str(x[0]))
 	# Noch nicht vorhandene Columns erstellen
-	oldcolumns = set(oldcolumns)
-	columns = set(columns)
-	newcolumns = list(columns - oldcolumns)
+	newcolumns = []
+	for x in columns:
+		if not x in oldcolumns:
+			newcolumns.append(x)
+	if not newcolumns:
+		return [110, "Es gibt keine neuen Columns zum erstellen\n"]
 	for x in newcolumns:
-		query = "ALTER TABLE test ADD COLUMN %s character varying;" % x
-		write(query)
-	return True
+		query = "ALTER TABLE photoindex ADD COLUMN %s character varying;" % x
+		a = write(query)
+		if a[0] != 200:
+			return a.append("Folgender Querie hat nicht funktioniert:\n" + query + "\n")
+	return [200, "Alter Table scheint funktioniert zu haben"]
 
 # Write dict
 # Schreibt Dictionary in Table test und kontrolliert ob Eintrag mehrmals vorhanden ist. Falls Ja timestamp und Image_Model in Table multiplephoto schreiben.
@@ -140,10 +150,11 @@ def writedict(dictionary):
 	# Query aus dict erstellen
 	columns = ""
 	values = ""
-	intvalues = ["Image_ExifOffset", "EXIF_SubjectDistanceRange", "EXIF_FlashPixVersion", "EXIF_ExifVersion", "EXIF_FocalLengthIn35mmFilm", "EXIF_InteroperabilityOffset", "Thumbnail_JPEGInterchangeFormat", "EXIF_ExifImageLength", "EXIF_CompressedBitsPerPixel", "EXIF_ExposureBiasValue", "Image_GPSInfo", "Thumbnail_JPEGInterchangeFormatLength", "EXIF_ExifImageWidth", "GPS_GPSAltitudeRef", "EXIF_FocalLength", "Image_XResolution", "EXIF_ISOSpeedRatings", "Image_YResolution", "Thumbnail_XResolution", "Thumbnail_YResolution"]
-	timestamps = ["Image_DateTime", "EXIF_DateTimeOriginal", "EXIF_DateTimeDigitized"]
+	controlvalue = ""
+	intvalues = ['image_exifoffset', 'exif_subjectdistancerange', 'exif_flashpixversion', 'exif_exifversion', 'exif_focallengthin35mmfilm', 'exif_interoperabilityoffset', 'thumbnail_jpeginterchangeformat', 'exif_exifimagelength', 'exif_compressedbitsperpixel', 'exif_exposurebiasvalue', 'image_gpsinfo', 'thumbnail_jpeginterchangeformatlength', 'exif_exifimagewidth', 'gps_gpsaltituderef', 'exif_focallength', 'image_xresolution', 'exif_isospeedratings', 'image_yresolution', 'thumbnail_xresolution', 'thumbnail_yresolution']
+	timestamps = ["image_datetime", "exif_datetimeoriginal", "exif_datetimedigitized"]
 	for x in dictionary:
-		y = x.replace(' ', '_')
+		y = x.replace(' ', '_').lower()
 		if str(dictionary[x]):
 			columns = columns + y + ", "
 			if y in intvalues:
@@ -156,15 +167,26 @@ def writedict(dictionary):
 				values = values + "\'" + str(dictionary[x]).replace('"', '\\"') + "\', "
 	columns = columns[:len(columns) - 2]
 	values = values[:len(values) - 2]
-	query = "INSERT INTO TABLE test (" + columns + ") VALUES (" + values + ");"
-	write(query)
+	query = "INSERT INTO photoindex (" + columns + ") VALUES (" + values + ");"
+	a = write(query)
+	if a[0] != 200:
+		return a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
 	# Kontrolle, ob Eintrag schon in DB anhand eines Timestamp und Image_Model.
 	# Wenn ja wird Timestamp und Image_Model in Table multiplephoto geschrieben.
 	#TODO ueberpruefen ob timestamp und Image_Model vorhanden ist
-	query = "SELECT id WHERE " + controltimestamp + " = " + controlvalue + " AND Image_Model = \'" + dictionary['Image Model'].replace('"', '\\"') + "\';"
-	searchresult = readquery(query)
+	try:
+		if not controlvalue or not str(dictionary['Image Model']):
+			return [121, "Es sind zu wenig Argumente fuer die douplettenueberpruefung vorhanden\n"]
+	except:
+		return [121, "Es sind zu wenig Argumente fuer die douplettenueberpruefung vorhanden\n"]
+	query = "SELECT id FROM photoindex WHERE " + controltimestamp + " = " + controlvalue[:len(controlvalue) - 2] + " AND image_model = \'" + str(dictionary['Image Model']).replace('"', '\\"') + "\';"
+	a = readquery(query)
+	if a[0] != 200:
+		return a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
+	searchresult = a[1]
 	if len(searchresult) == 0:
 		# Konnte nicht in DB schreiben
+		return [120, "Der zuvor ausgefuehrte Query konnte nicht wieder aus der DB gelesen werden\n"]
 		pass
 	elif len(searchresult) == 1:
 		# Eintrag ist nur ein Mal in DB
@@ -172,9 +194,11 @@ def writedict(dictionary):
 	else:
 		# Eintrag ist mehrmals in DB
 		# Timestamp und Image_Model in Table multiplephoto schreiben
-		query = "INSERT INTO TABLE multiplephoto (" + controltimestamp + ", Image_Model) VALUES (" + controlvalue + ", \'" + dictionary['Image Model'].replace('"', '\\"') + "\');"
-		write(query)
-	return query
+		query = "INSERT INTO multiplephoto (" + controltimestamp + ", Image_Model) VALUES (" + controlvalue + "\'" + str(dictionary['Image Model']).replace('"', '\\"') + "\');"
+		a = write(query)
+		if a[0] != 200:
+			return a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
+	return [200, "Photo scheint erfolgreich indexiert worden zu sein\n"]
 	
 		
 	

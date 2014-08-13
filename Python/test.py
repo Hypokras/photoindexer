@@ -8,7 +8,7 @@ import database
 
 def indexing(pathtoimage):
 	imagepath = os.path.abspath(pathtoimage)
-	if not os.path.exist(imagepath):
+	if not os.path.exists(imagepath):
 		return "Der Pfad %s existiert nicht" % imagepath
 	foldername = os.path.dirname(imagepath)
 	filename = os.path.basename(imagepath)
