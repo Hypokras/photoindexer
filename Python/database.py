@@ -95,7 +95,8 @@ def initdb():
 	query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
 	a = readquery(query)
 	if a[0] != 200:
-		return a.append("Tables konnten nicht aus DB gelesen werden\n")
+		a.append("Tables konnten nicht aus DB gelesen werden\n")
+		return a
 	tables = a[1]
 	value = []
 	for x in tables:
@@ -104,11 +105,13 @@ def initdb():
 		# Die gewuenschten Tables erstellen.
 		a = writescript("../PostgreSQL/photoindex_table.sql")
 		if a[0] != 200:
-			return a.append("Table photoindex konnte nicht erstellt werden\n")
+			a.append("Table photoindex konnte nicht erstellt werden\n")
+			return a
 	if not "multiplephoto" in value:
 		a = writescript("../PostgreSQL/multiplephoto_table.sql")
 		if a[0] != 200:
-			return a.append("Table multiplephoto konnte nicht erstellt werden\n")
+			a.append("Table multiplephoto konnte nicht erstellt werden\n")
+			return a
 	return [200, tables]
 
 # Alter Table
@@ -120,7 +123,8 @@ def altertable(columns):
 	query = "SELECT column_name FROM information_schema.columns WHERE table_name ='photoindex';"
 	a = readquery(query)
 	if a[0] != 200:
-		return a.append("Column namen konnten nicht gelesen werden\n")
+		a.append("Column namen konnten nicht gelesen werden\n")
+		return a
 	result = a[1]
 	x = []
 	for a in columns:
@@ -140,7 +144,8 @@ def altertable(columns):
 		query = "ALTER TABLE photoindex ADD COLUMN %s character varying;" % x
 		a = write(query)
 		if a[0] != 200:
-			return a.append("Folgender Querie hat nicht funktioniert:\n" + query + "\n")
+			a.append("Folgender Querie hat nicht funktioniert:\n" + query + "\n")
+			return a
 	return [200, "Alter Table scheint funktioniert zu haben"]
 
 # Write dict
@@ -170,10 +175,10 @@ def writedict(dictionary):
 	query = "INSERT INTO photoindex (" + columns + ") VALUES (" + values + ");"
 	a = write(query)
 	if a[0] != 200:
-		return a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
+		a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
+		return a
 	# Kontrolle, ob Eintrag schon in DB anhand eines Timestamp und Image_Model.
 	# Wenn ja wird Timestamp und Image_Model in Table multiplephoto geschrieben.
-	#TODO ueberpruefen ob timestamp und Image_Model vorhanden ist
 	try:
 		if not controlvalue or not str(dictionary['Image Model']):
 			return [121, "Es sind zu wenig Argumente fuer die douplettenueberpruefung vorhanden\n"]
@@ -182,7 +187,8 @@ def writedict(dictionary):
 	query = "SELECT id FROM photoindex WHERE " + controltimestamp + " = " + controlvalue[:len(controlvalue) - 2] + " AND image_model = \'" + str(dictionary['Image Model']).replace('"', '\\"') + "\';"
 	a = readquery(query)
 	if a[0] != 200:
-		return a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
+		a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
+		return a
 	searchresult = a[1]
 	if len(searchresult) == 0:
 		# Konnte nicht in DB schreiben
@@ -197,7 +203,8 @@ def writedict(dictionary):
 		query = "INSERT INTO multiplephoto (" + controltimestamp + ", Image_Model) VALUES (" + controlvalue + "\'" + str(dictionary['Image Model']).replace('"', '\\"') + "\');"
 		a = write(query)
 		if a[0] != 200:
-			return a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
+			a.append("Folgender Query hat nicht funktioniert:\n" + query + "\n")
+			return a
 	return [200, "Photo scheint erfolgreich indexiert worden zu sein\n"]
 	
 		

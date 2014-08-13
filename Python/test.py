@@ -9,35 +9,34 @@ import database
 def indexing(pathtoimage):
 	imagepath = os.path.abspath(pathtoimage)
 	if not os.path.exists(imagepath):
-		return "Der Pfad %s existiert nicht" % imagepath
+		return [160, "Der Pfad %s existiert nicht" % imagepath]
 	foldername = os.path.dirname(imagepath)
 	filename = os.path.basename(imagepath)
 	f = open(imagepath, 'rb')
 	try:
 		tags = exifread.process_file(f, details=False)
 	except:
-		return "Irgendetwas beim Lesen der EXIF-Daten ging schief bei %s" % imagepath
+		return [160, "Irgendetwas beim Lesen der EXIF-Daten ging schief bei %s" % imagepath]
 	if tags == {}:
-		return "File %s enthält keine EXIF-Daten" % imagepath
+		return [160, "File %s enthält keine EXIF-Daten" % imagepath]
 	f.close()
-	# DateTime konvertieren von "yyyy:mm:dd hh:mm:ss" zu "yyyy-mm-dd hh:mm:ss"
-	try:
-		exif_datetimeoriginal = str(tags['EXIF DateTimeOriginal'])
-		datetime = exif_datetimeoriginal[:4] + "-" + exif_datetimeoriginal[5:7] + "-" + exif_datetimeoriginal[8:]
-	except:
-		# EXIF-Daten enthalten kein "EXIF DateTimeOriginal"
-		pass
-	try:		
-		imagemodel = str(tags['Image Model'])
-		#TODO Kontrollen fehlen, Tags sind nicht einheitlich...
-		query = "insert into test (name, path, datetime, imagemodel) values ('%s', '%s', TIMESTAMP '%s', '%s');" %(filename, foldername, datetime, imagemodel)
-		status = database.write(query)
-	except:
-		logfile = open("/tmp/photoindexer.log", "a")
-		logfile.writelines(pathtoimage + "\n")
-		logfile.close()
-		return
-	return [foldername, filename, datetime, imagemodel, status]
+	tags['dir_foldername'] = foldername
+	tags['dir_filename'] = filename
+	a = database.writedict(tags)
+	if a[0] == 200:
+		return a
+	elif a[0] == 102:
+		a = database.altertable(list(tags))
+		if a[0] != 200:
+			a.append("altertable hat nicht funktioniert\n")
+			return a
+		a = database.writedict(tags)
+		if a[0] != 200:
+			a.append("writedict hat trotz altertable nicht funktioniert\n")
+			return a
+	else:
+		a.append("irgendetwas ging total schief")
+		return [160, "test"]
 
 
 # Ueber alle Files im photofolder loopen
@@ -47,9 +46,34 @@ def loopinfolder(photofolder):
 	logfile = open("/tmp/photoindexer.log", "a")
 	logfile.write("Dies ist das Logfile\n")
 	logfile.close()
+	database.initdb()
+	# Dateien zählen
+	anzahldateien = 0
 	for root, dirs, files in os.walk(photofolder):
 		for n in files:
-			indexing(root + "/" + n)
+			anzahldateien = anzahldateien + 1
+	counter = 0
+	for root, dirs, files in os.walk(photofolder):
+		for n in files:
+			counter = counter + 1
+			a = indexing(root + "/" + n)
+			if a[0] == 160:
+				logfile = open("/tmp/photoindexer.log", "a")
+				for x in a:
+					logfile.writelines(str(x))
+				logfile.close()
+				print "Bearbeite File %s von %s\n" % (str(counter), str(anzahldateien))
+			elif a[0] != 200:
+				a.append("indexierung unterbrochen")
+				logfile = open("/tmp/photoindexer.log", "a")
+				for x in a:
+					logfile.writelines(str(x))
+				logfile.close()
+				return a
+			else:
+				print "Bearbeite File %s von %s\n" % (str(counter), str(anzahldateien))
+				
+			
 
 
 
